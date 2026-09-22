@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiet Responder Loop — Prototype</title>
+<style>
+  :root{
+    --ground:#F5F2EA;
+    --surface:#FFFFFF;
+    --surface-2:#FBF8F1;
+    --ink:#1C2029;
+    --ink-soft:#5B5F6E;
+    --ink-faint:#8B8E9B;
+    --line:#DCD5C4;
+    --line-soft:#E9E4D8;
+    --accent:#C15A2B;
+    --accent-ink:#7A3110;
+    --accent-soft:#F1DDC9;
+    --good:#2E7D58;
+    --good-soft:#DEEEE4;
+    --critical:#B23A52;
+    --critical-soft:#F6E0E4;
+    --font-display:'Trebuchet MS','Segoe UI',Helvetica,Arial,sans-serif;
+    --font-body:Georgia,'Times New Roman',serif;
+    --font-mono:Consolas,'SFMono-Regular',Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ground:#14161C;
+      --surface:#1B1E26;
+      --surface-2:#20232C;
+      --ink:#EDEAE1;
+      --ink-soft:#AEB0BD;
+      --ink-faint:#767A8A;
+      --line:#333644;
+      --line-soft:#2A2D38;
+      --accent:#E07C4C;
+      --accent-ink:#F3AD82;
+      --accent-soft:#3A2A1E;
+      --good:#5FBF8E;
+      --good-soft:#1E322A;
+      --critical:#E17A90;
+      --critical-soft:#3A222A;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ground);
+    color:var(--ink);
+    font-family:var(--font-body);
+    padding:40px 20px;
+    line-height:1.55;
+  }
+  .page{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:32px;}
+
+  .eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:700;}
+  h1{font-family:var(--font-display);font-weight:800;font-size:clamp(26px,5vw,38px);line-height:1.1;margin:10px 0 4px;color:var(--ink);}
+  .subhead{font-family:var(--font-body);font-style:italic;color:var(--ink-soft);font-size:15.5px;max-width:60ch;}
+
+  section{display:flex;flex-direction:column;gap:12px;}
+  h2{font-family:var(--font-display);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);}
+  p{margin:0;font-size:14.5px;}
+
+  .walk{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:18px;}
+  .stepper{display:flex;gap:6px;flex-wrap:wrap;}
+  .step-btn{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.03em;padding:9px 13px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink-soft);cursor:pointer;}
+  .step-btn:hover{border-color:var(--accent);}
+  .step-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+  .stage-label{font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);text-align:center;min-height:16px;}
+
+  .walk-panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:640px){.walk-panels{grid-template-columns:1fr;}}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .panel-head{font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);padding:11px 14px;border-bottom:1px solid var(--line-soft);}
+  .panel-sub{font-weight:400;color:var(--ink-faint);text-transform:none;letter-spacing:0;}
+  .panel-body{padding:16px;display:flex;flex-direction:column;gap:12px;}
+
+  .roster-row{display:flex;flex-direction:column;gap:7px;padding:12px 13px;border:1px solid var(--line-soft);border-radius:8px;transition:border-color .2s;}
+  .roster-row.dim{opacity:.5;}
+  .roster-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .roster-name{font-family:var(--font-display);font-weight:700;font-size:14.5px;}
+  .status-pill{font-family:var(--font-mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:99px;background:var(--good-soft);color:var(--good);font-weight:700;}
+  .roster-note{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);}
+  .badge{display:inline-flex;align-self:flex-start;font-family:var(--font-mono);font-size:10.5px;padding:3px 8px;border-radius:6px;background:var(--critical-soft);color:var(--critical);font-weight:700;}
+
+  .override-btn{
+    align-self:flex-start;
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    font-weight:700;
+    padding:8px 12px;
+    border-radius:7px;
+    border:1px solid var(--accent);
+    background:var(--accent-soft);
+    color:var(--accent-ink);
+    cursor:pointer;
+  }
+  .override-btn:hover{background:var(--accent);color:#fff;}
+  .override-btn:disabled{
+    cursor:default;
+    background:var(--good-soft);
+    color:var(--good);
+    border-color:var(--good);
+  }
+
+  .phone-mock{border:1px solid var(--line-soft);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px;background:var(--surface-2);}
+  .phone-toggle{display:flex;justify-content:space-between;align-items:center;font-family:var(--font-display);font-weight:700;font-size:14px;}
+  .switch{width:34px;height:18px;border-radius:99px;background:var(--good);position:relative;flex-shrink:0;}
+  .switch::after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;}
+  .phone-note{font-size:13.5px;color:var(--ink-soft);}
+  .phone-banner{font-family:var(--font-mono);font-size:11.5px;font-weight:700;padding:9px 11px;border-radius:6px;background:var(--good-soft);color:var(--good);}
+
+  .roster-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media (max-width:520px){.roster-grid{grid-template-columns:1fr;}}
+  .roster-grid .roster-row{padding:10px 11px;}
+  .roster-who{font-family:var(--font-mono);font-size:9.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;}
+
+  .thread{display:flex;flex-direction:column;gap:7px;}
+  .bubble{max-width:88%;padding:7px 11px;border-radius:14px;font-size:12.5px;line-height:1.4;font-family:var(--font-body);}
+  .bubble.out{align-self:flex-end;background:var(--accent-soft);color:var(--accent-ink);border-bottom-right-radius:3px;}
+  .bubble.in{align-self:flex-start;background:var(--surface);border:1px solid var(--line-soft);color:var(--ink-soft);border-bottom-left-radius:3px;}
+  .bubble-who{display:block;font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:.05em;opacity:.7;margin-bottom:2px;}
+
+  .incident-card{border:1px solid var(--accent);background:var(--accent-soft);border-radius:8px;padding:11px 13px;font-size:13px;color:var(--accent-ink);}
+  .incident-card b{display:block;font-family:var(--font-display);font-size:13.5px;margin-bottom:3px;}
+  .choice-row{display:flex;flex-direction:column;gap:8px;}
+  .choice-btn{font-family:var(--font-mono);font-size:11.5px;font-weight:700;padding:10px 12px;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;text-align:left;}
+  .choice-btn:hover{border-color:var(--accent);}
+  .choice-btn .sub{display:block;font-family:var(--font-body);font-weight:400;font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .choice-btn.picked{border-color:var(--good);background:var(--good-soft);color:var(--good);}
+  .consequence{font-size:13px;color:var(--ink-soft);border-top:1px dashed var(--line);padding-top:10px;}
+
+  .hint{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);text-align:center;}
+
+  .scope-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface);}
+  .scope-row{display:flex;gap:12px;padding:11px 15px;border-bottom:1px solid var(--line-soft);font-size:14px;}
+  .scope-row:last-child{border-bottom:none;}
+  .scope-row .x{font-family:var(--font-mono);color:var(--critical);font-weight:700;flex-shrink:0;font-size:12.5px;margin-top:2px;}
+  .scope-row b{color:var(--ink);}
+  .scope-row span.reason{color:var(--ink-soft);}
+
+  footer{border-top:1px solid var(--line);padding-top:16px;font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div>
+    <div class="eyebrow">Prototype · Rook Dispatch</div>
+    <h1>Breaking the Quiet-Responder Loop</h1>
+    <p class="subhead">Kip's real desk: Meteor Mite and The Gale, the two cards Kip actually has open. Click through what Kip sees, what Meteor Mite's phone shows, and the call Kip has to make when the fix collides with a live incident.</p>
+  </div>
+
+  <section>
+    <h2>Walk through it</h2>
+    <div class="walk">
+      <div class="stepper" id="stepper"></div>
+      <div class="stage-label" id="stage-label"></div>
+      <div class="walk-panels">
+        <div class="panel">
+          <div class="panel-head">Kip's console <span class="panel-sub">(Meteor Mite + The Gale, side by side — Kip's actual two cards)</span></div>
+          <div class="panel-body" id="console-body"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">Meteor Mite's phone <span class="panel-sub">(her text thread with Kip)</span></div>
+          <div class="panel-body">
+            <div class="phone-mock">
+              <div class="phone-toggle"><span>Available for callouts</span><div class="switch"></div></div>
+              <p class="phone-note" id="phone-note"></p>
+              <div class="thread" id="phone-thread"></div>
+              <div class="phone-banner" id="phone-banner" hidden></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hint" id="hint"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What this deliberately doesn't do</h2>
+    <div class="scope-list">
+      <div class="scope-row"><span class="x">NOT</span><span><b>A reversal of the 4.2 proximity rebalance.</b> <span class="reason">Three quarters in the making for a real problem — untouched here.</span></span></div>
+      <div class="scope-row"><span class="x">NOT</span><span><b>A change to the 60-second callout timeout.</b> <span class="reason">That's the "offer vanished" ticket theme, not this one.</span></span></div>
+      <div class="scope-row"><span class="x">NOT</span><span><b>A silent constant change in <code>history.py</code>.</b> <span class="reason">Helen's ask — this has to be something Kip can see and Meteor Mite can feel.</span></span></div>
+    </div>
+  </section>
+
+  <footer>Full brief: 05-super-speed/brief.md · Grounded in dispatch-routing (config.py, offer.py, history.py) and callout-history.csv, 08–31 Aug 2026.</footer>
+
+</div>
+
+<script>
+(function(){
+  var stepper = document.getElementById('stepper');
+  var stageLabel = document.getElementById('stage-label');
+  var hint = document.getElementById('hint');
+  var consoleBody = document.getElementById('console-body');
+  var phoneNote = document.getElementById('phone-note');
+  var phoneThread = document.getElementById('phone-thread');
+  var phoneBanner = document.getElementById('phone-banner');
+
+  // Real weekly pings_sent/accepted from callout-history.csv, Meteor Mite & The Gale, both handled by Kip.
+  var mite = { w0629:[11,7], w0831:[1,0] };
+  var gale = { w0629:[13,10], w0831:[21,16] };
+
+  var days = [
+    { key:'a', label:'WEEK OF 29 JUN — BASELINE' },
+    { key:'b', label:'WEEK OF 31 AUG — TODAY, NO FIX' },
+    { key:'c', label:'NEXT WEEK — WITH THIS FIX' },
+    { key:'d', label:'THE WEEK AFTER — THE TRADEOFF' }
+  ];
+  var current = 'b';
+  var sent = false;   // Kip acted on the floor flag, step c
+  var picked = null;  // 'mite' or 'gale', step d
+
+  days.forEach(function(d){
+    var btn = document.createElement('button');
+    btn.className = 'step-btn';
+    btn.textContent = d.label;
+    btn.setAttribute('data-key', d.key);
+    btn.addEventListener('click', function(){
+      current = d.key;
+      sent = false;
+      picked = null;
+      render();
+    });
+    stepper.appendChild(btn);
+  });
+
+  function rosterRow(name, who, opts){
+    opts = opts || {};
+    var el = document.createElement('div');
+    el.className = 'roster-row' + (opts.dim ? ' dim' : '');
+    var badgeHtml = opts.badge ? '<span class="badge">'+opts.badge+'</span>' : '';
+    el.innerHTML =
+      '<span class="roster-who">'+who+'</span>'+
+      '<div class="roster-top"><span class="roster-name">'+name+'</span><span class="status-pill">Available</span></div>'+
+      '<span class="roster-note">'+opts.note+'</span>' + badgeHtml;
+    if (opts.action){
+      var btn = document.createElement('button');
+      btn.className = 'override-btn';
+      btn.textContent = opts.action.label;
+      btn.disabled = !!opts.action.disabled;
+      btn.addEventListener('click', function(){
+        sent = true;
+        render();
+      });
+      el.appendChild(btn);
+    }
+    return el;
+  }
+
+  function bubble(who, side, text){
+    var el = document.createElement('div');
+    el.className = 'bubble ' + side;
+    el.innerHTML = '<span class="bubble-who">'+who+'</span>'+text;
+    return el;
+  }
+
+  function miteRow(opts){ return rosterRow('Meteor Mite', 'Kip’s card 1 of 2', opts); }
+  function galeRow(opts){ return rosterRow('The Gale', 'Kip’s card 2 of 2', opts); }
+
+  function render(){
+    Array.prototype.forEach.call(stepper.children, function(b){
+      b.classList.toggle('active', b.getAttribute('data-key') === current);
+    });
+
+    consoleBody.innerHTML = '';
+    consoleBody.className = 'panel-body';
+    phoneThread.innerHTML = '';
+    phoneBanner.hidden = true;
+
+    if (current === 'a'){
+      stageLabel.textContent = 'WEEK OF 29 JUN — BASELINE, BEFORE 4.2';
+      hint.textContent = '';
+      var grid = document.createElement('div'); grid.className = 'roster-grid';
+      grid.appendChild(miteRow({ note: mite.w0629[0]+' offers sent this week · '+mite.w0629[1]+' accepted' }));
+      grid.appendChild(galeRow({ note: gale.w0629[0]+' offers sent this week · '+gale.w0629[1]+' accepted' }));
+      consoleBody.appendChild(grid);
+      phoneNote.textContent = 'Both cards look similar. Nothing about this week stands out to Kip.';
+    }
+
+    if (current === 'b'){
+      stageLabel.textContent = 'WEEK OF 31 AUG — TODAY, NO FIX';
+      hint.textContent = '';
+      var grid = document.createElement('div'); grid.className = 'roster-grid';
+      grid.appendChild(miteRow({ note: mite.w0831[0]+' offer sent this week · '+mite.w0831[1]+' accepted · down from 11/7 in June', dim:true }));
+      grid.appendChild(galeRow({ note: gale.w0831[0]+' offers sent this week · '+gale.w0831[1]+' accepted · up from 13/10 in June' }));
+      consoleBody.appendChild(grid);
+      phoneThread.appendChild(bubble('Meteor Mite → Kip','out','hey is something broken? phone hasn’t gone off all week'));
+      phoneThread.appendChild(bubble('Kip → Meteor Mite','in','hang in there, it’ll pick up'));
+      phoneNote.textContent = 'That’s the whole conversation. Kip doesn’t have anything truer to say than that.';
+    }
+
+    if (current === 'c'){
+      stageLabel.textContent = 'NEXT WEEK — WITH THIS FIX';
+      var grid = document.createElement('div'); grid.className = 'roster-grid';
+      if (!sent){
+        hint.textContent = '↓ click the button on Meteor Mite’s card — that’s Kip acting on the floor flag';
+        grid.appendChild(miteRow({
+          note:'Recent-acceptance recovering on the weekly timer · still 0 accepted since 17 Aug',
+          badge:'NO OFFER IN 3 WEEKS — FLOOR HIT',
+          action:{ label:'Send next matching callout to Meteor Mite →', disabled:false }
+        }));
+        phoneThread.appendChild(bubble('Meteor Mite → Kip','out','still nothing on my end'));
+        phoneThread.appendChild(bubble('Kip → Meteor Mite','in','I see why now — you hit the floor, one’s coming today'));
+        phoneNote.textContent = 'Kip can finally say something specific instead of “hang in there.”';
+      } else {
+        hint.textContent = '';
+        grid.appendChild(miteRow({
+          note:'Callout offer sent · awaiting response',
+          badge:'NO OFFER IN 3 WEEKS — FLOOR HIT',
+          action:{ label:'✓ Sent to Meteor Mite', disabled:true }
+        }));
+        phoneThread.appendChild(bubble('Meteor Mite → Kip','out','still nothing on my end'));
+        phoneThread.appendChild(bubble('Kip → Meteor Mite','in','I see why now — you hit the floor, one’s coming today'));
+        phoneNote.textContent = 'The first offer in three weeks just arrived — and it says why.';
+        phoneBanner.hidden = false;
+        phoneBanner.textContent = 'Callout offer · sent because you hit the 3-week floor, not luck';
+      }
+      grid.appendChild(galeRow({ note: gale.w0831[0]+' offers sent last week · unaffected by Meteor Mite’s floor' }));
+      consoleBody.appendChild(grid);
+    }
+
+    if (current === 'd'){
+      stageLabel.textContent = 'THE WEEK AFTER — THE FLOOR MEETS A LIVE INCIDENT';
+      var incident = document.createElement('div');
+      incident.className = 'incident-card';
+      incident.innerHTML = '<b>Incident just landed — matches both responders’ capability tags</b>'+
+        'The Gale is 6 min out. Meteor Mite is 19 min out and hit the 3-week floor yesterday. Routing can’t send both — Kip has to pick.';
+      consoleBody.appendChild(incident);
+
+      var choiceRow = document.createElement('div');
+      choiceRow.className = 'choice-row';
+
+      var b1 = document.createElement('button');
+      b1.className = 'choice-btn' + (picked==='mite' ? ' picked' : '');
+      b1.innerHTML = 'Send to Meteor Mite — honor the floor<span class="sub">Slower response to this incident; keeps the floor guarantee meaningful</span>';
+      b1.addEventListener('click', function(){ picked='mite'; render(); });
+
+      var b2 = document.createElement('button');
+      b2.className = 'choice-btn' + (picked==='gale' ? ' picked' : '');
+      b2.innerHTML = 'Send to The Gale — closer, faster on this incident<span class="sub">Meteor Mite’s floor resets — still 0 offers, clock starts over</span>';
+      b2.addEventListener('click', function(){ picked='gale'; render(); });
+
+      choiceRow.appendChild(b1);
+      choiceRow.appendChild(b2);
+      consoleBody.appendChild(choiceRow);
+
+      if (picked){
+        var cons = document.createElement('p');
+        cons.className = 'consequence';
+        if (picked==='mite'){
+          cons.textContent = 'Kip sent it to Meteor Mite. The incident gets a slower response than The Gale could have given — the tradeoff this brief’s open question 2 still needs Helen’s call on: does the floor win, or does proximity win, when they conflict?';
+          phoneThread.appendChild(bubble('Meteor Mite → Kip','out','got the offer — on my way'));
+          phoneBanner.hidden = false;
+          phoneBanner.textContent = 'Floor honored — first offer since the 3-week gap';
+        } else {
+          cons.textContent = 'Kip sent it to The Gale. Faster on this incident, but Meteor Mite’s floor timer resets to zero — exactly the open question this brief flags: without a rule for who wins, "no one waits forever" isn’t guaranteed, it’s a coin flip Kip makes alone at 2am.';
+          phoneThread.appendChild(bubble('Meteor Mite → Kip','out','still nothing? it said I was next'));
+        }
+        consoleBody.appendChild(cons);
+      }
+      hint.textContent = picked ? '' : '↓ this is the decision open question 2 in the brief is asking Helen to settle';
+      phoneNote.textContent = picked ? '' : 'Whatever Kip picks next changes what Meteor Mite sees.';
+    }
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
